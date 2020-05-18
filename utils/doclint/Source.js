@@ -15,11 +15,12 @@
  */
 
 const path = require('path');
+const util = require('util');
 const fs = require('fs');
 
-const readFileAsync = promisify(fs.readFile);
-const readdirAsync = promisify(fs.readdir);
-const writeFileAsync = promisify(fs.writeFile);
+const readFileAsync = util.promisify(fs.readFile);
+const readdirAsync = util.promisify(fs.readdir);
+const writeFileAsync = util.promisify(fs.writeFile);
 
 const PROJECT_DIR = path.join(__dirname, '..', '..');
 
@@ -62,8 +63,7 @@ class Source {
    * @return {boolean}
    */
   setText(text) {
-    if (text === this._text)
-      return false;
+    if (text === this._text) return false;
     this._hasUpdatedText = true;
     this._text = text;
     return true;
@@ -93,7 +93,7 @@ class Source {
    */
   static async readFile(filePath) {
     filePath = path.resolve(filePath);
-    const text = await readFileAsync(filePath, {encoding: 'utf8'});
+    const text = await readFileAsync(filePath, { encoding: 'utf8' });
     return new Source(filePath, text);
   }
 
@@ -104,32 +104,14 @@ class Source {
    */
   static async readdir(dirPath, extension = '') {
     const fileNames = await readdirAsync(dirPath);
-    const filePaths = fileNames.filter(fileName => fileName.endsWith(extension)).map(fileName => path.join(dirPath, fileName));
-    return Promise.all(filePaths.map(filePath => Source.readFile(filePath)));
+    const filePaths = fileNames
+      .filter((fileName) => fileName.endsWith(extension))
+      .map((fileName) => path.join(dirPath, fileName))
+      .filter((filePath) => {
+        const stats = fs.lstatSync(filePath);
+        return stats.isDirectory() === false;
+      });
+    return Promise.all(filePaths.map((filePath) => Source.readFile(filePath)));
   }
 }
 module.exports = Source;
-
-/**
- * @param {function(?)} nodeFunction
- * @return {function(?):!Promise<?>}
- */
-function promisify(nodeFunction) {
-  /**
-   * @param {!Array<?>} options
-   * @return {!Promise<?>}
-   */
-  return function(...options) {
-    return new Promise(function(fulfill, reject) {
-      options.push(callback);
-      nodeFunction.call(null, ...options);
-      function callback(err, result) {
-        if (err)
-          reject(err);
-        else
-          fulfill(result);
-      }
-    });
-  };
-}
-
